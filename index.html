@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIDEO FX</title>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;color:#000;font-family:'Pretendard',sans-serif;font-weight:300;font-size:11px;letter-spacing:0.08em;min-height:100vh;cursor:crosshair;overflow:hidden}
+
+.header{border-bottom:1px solid #000;padding:16px 28px;display:flex;justify-content:space-between;align-items:flex-end;height:48px}
+.h-title{font-size:10px;letter-spacing:0.22em}
+.h-title span{color:#cc0000}
+.h-right{display:flex;gap:20px;font-size:9px;letter-spacing:0.15em;color:rgba(0,0,0,0.35);align-items:center}
+#fps-counter{color:#000}
+#rec-pill{background:#cc0000;color:#fff;padding:3px 10px;font-size:8px;letter-spacing:0.2em;display:none}
+#rec-pill.on{display:block}
+
+.layout{display:grid;grid-template-columns:1fr 300px;height:calc(100vh - 48px)}
+
+/* CANVAS */
+.canvas-wrap{position:relative;background:#0a0a0a;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1px solid #000}
+#canvas{max-width:100%;max-height:100%;display:block}
+video{display:none}
+
+/* DROP ZONE */
+.drop-zone{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;cursor:pointer}
+.drop-zone.hidden{display:none}
+.dz-box{border:1px solid rgba(255,255,255,0.15);padding:40px 60px;text-align:center;cursor:pointer;transition:border-color 0.15s}
+.dz-box:hover,.dz-box.drag{border-color:#cc0000}
+.dz-title{font-size:10px;letter-spacing:0.25em;color:rgba(255,255,255,0.6);margin-bottom:12px}
+.dz-sub{font-size:9px;letter-spacing:0.15em;color:rgba(255,255,255,0.25);line-height:1.9}
+.dz-sub span{color:#cc0000}
+#file-input{display:none}
+
+/* CORNER MARKS */
+.cm{position:absolute;width:10px;height:10px;border-color:rgba(204,0,0,0.4);border-style:solid;border-width:0;pointer-events:none}
+.cm.tl{top:10px;left:10px;border-top-width:1px;border-left-width:1px}
+.cm.tr{top:10px;right:10px;border-top-width:1px;border-right-width:1px}
+.cm.bl{bottom:10px;left:10px;border-bottom-width:1px;border-left-width:1px}
+.cm.br{bottom:10px;right:10px;border-bottom-width:1px;border-right-width:1px}
+
+/* REC DOT */
+.rec-dot{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:0.18em;color:#cc0000;display:none;align-items:center;gap:5px}
+.rec-dot.on{display:flex}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.rdot{width:5px;height:5px;background:#cc0000;border-radius:50%;animation:blink 1s step-end infinite}
+
+/* VIDEO CONTROLS */
+.vid-controls{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:12px 16px 10px;display:none}
+.vid-controls.on{display:block}
+.seek-bar{width:100%;height:1px;-webkit-appearance:none;background:rgba(255,255,255,0.3);outline:none;cursor:pointer;margin-bottom:8px;display:block}
+.seek-bar::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;background:#fff;border-radius:50%;cursor:pointer}
+.vc-row{display:flex;align-items:center;gap:12px}
+.vc-btn{background:transparent;border:none;color:#fff;font-family:'Pretendard',sans-serif;font-weight:300;font-size:9px;letter-spacing:0.15em;cursor:pointer;padding:0}
+.vc-btn:hover{color:#cc0000}
+.vc-time{font-size:9px;letter-spacing:0.1em;color:rgba(255,255,255,0.5);margin-left:auto}
+.vol-wrap{display:flex;align-items:center;gap:6px}
+.vol-slider{width:50px;height:1px;-webkit-appearance:none;background:rgba(255,255,255,0.3);outline:none;cursor:pointer}
+.vol-slider::-webkit-slider-thumb{-webkit-appearance:none;width:7px;height:7px;background:#fff;border-radius:50%;cursor:pointer}
+
+/* PANEL */
+.panel{overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column}
+.panel::-webkit-scrollbar{width:2px}
+.panel::-webkit-scrollbar-thumb{background:#000}
+
+.sec{border-bottom:1px solid rgba(0,0,0,0.1);padding:14px 18px}
+.sec-label{font-size:9px;letter-spacing:0.25em;color:#cc0000;margin-bottom:12px}
+
+.fx-row{display:flex;align-items:center;margin-bottom:8px;gap:8px}
+.fx-name{font-size:9px;letter-spacing:0.13em;color:#000;width:72px;flex-shrink:0}
+input[type=range].fx-sl{-webkit-appearance:none;flex:1;height:1px;background:#000;outline:none;cursor:pointer}
+input[type=range].fx-sl::-webkit-slider-thumb{-webkit-appearance:none;width:8px;height:8px;background:#000;border-radius:0;cursor:pointer}
+input[type=range].fx-sl:focus::-webkit-slider-thumb{background:#cc0000}
+.fx-v{font-size:9px;letter-spacing:0.06em;color:#000;width:26px;text-align:right;flex-shrink:0}
+.tog{width:16px;height:16px;border:1px solid rgba(0,0,0,0.25);background:transparent;cursor:pointer;flex-shrink:0;font-size:7px;letter-spacing:0;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,0.25);padding:0;font-family:'Pretendard',sans-serif}
+.tog.on{border-color:#000;background:#000;color:#fff}
+
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #000}
+.g-btn{padding:8px 0;background:transparent;border:none;border-right:1px solid #000;border-bottom:1px solid #000;font-family:'Pretendard',sans-serif;font-weight:300;font-size:8px;letter-spacing:0.15em;color:#000;cursor:pointer;text-align:center}
+.g-btn:nth-child(2n){border-right:none}
+.g-btn:nth-last-child(-n+2){border-bottom:none}
+.g-btn:hover{background:#000;color:#fff}
+
+.act-row{display:flex;border:1px solid #000}
+.a-btn{flex:1;padding:9px 0;background:transparent;border:none;border-right:1px solid #000;font-family:'Pretendard',sans-serif;font-weight:300;font-size:9px;letter-spacing:0.15em;color:#000;cursor:pointer}
+.a-btn:last-child{border-right:none}
+.a-btn:hover{background:#000;color:#fff}
+.a-btn.r{color:#cc0000}
+.a-btn.r:hover,.a-btn.r.on{background:#cc0000;color:#fff;border-color:#cc0000}
+.a-btn.dl{color:rgba(0,0,0,0.3)}
+.a-btn.dl.rdy{color:#000}
+.a-btn.dl.rdy:hover{background:#000;color:#fff}
+
+.info-grid{font-size:9px;letter-spacing:0.1em;line-height:2.2;color:rgba(0,0,0,0.4)}
+.info-grid b{color:#000;font-weight:300;float:right}
+.info-grid .red{color:#cc0000}
+
+.load-new{width:100%;padding:8px 0;background:transparent;border:1px solid rgba(0,0,0,0.2);font-family:'Pretendard',sans-serif;font-weight:300;font-size:9px;letter-spacing:0.18em;color:rgba(0,0,0,0.4);cursor:pointer;margin-top:10px}
+.load-new:hover{border-color:#000;color:#000}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="h-title">VIDEO FX — <span>REALTIME EFFECTS</span></div>
+  <div class="h-right">
+    <div id="rec-pill">● REC</div>
+    <div id="fps-counter">-- FPS</div>
+    <div id="h-filename" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">NO FILE</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <div class="canvas-wrap" id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <video id="video" loop></video>
+    <div class="cm tl"></div><div class="cm tr"></div>
+    <div class="cm bl"></div><div class="cm br"></div>
+    <div class="rec-dot" id="rec-dot"><div class="rdot"></div>REC</div>
+
+    <!-- DROP ZONE -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="dz-box" id="dz-box" onclick="document.getElementById('file-input').click()">
+        <div class="dz-title">영상 파일을 여기에 드래그하거나 클릭</div>
+        <div class="dz-sub">
+          지원 형식 <span>MP4 · MOV · WEBM · AVI</span><br>
+          파일은 브라우저 내에서만 처리됩니다
+        </div>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept="video/*">
+
+    <!-- VIDEO CONTROLS -->
+    <div class="vid-controls" id="vid-controls">
+      <input type="range" class="seek-bar" id="seek-bar" min="0" max="1000" value="0" step="1">
+      <div class="vc-row">
+        <button class="vc-btn" id="play-btn" onclick="togglePlay()">▶ PLAY</button>
+        <button class="vc-btn" onclick="restartVideo()">⟳</button>
+        <div class="vol-wrap">
+          <span style="font-size:9px;color:rgba(255,255,255,0.4);letter-spacing:0.1em">VOL</span>
+          <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.01" value="1" oninput="setVol(this.value)">
+        </div>
+        <span class="vc-time" id="vc-time">0:00 / 0:00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div class="panel">
+
+    <div class="sec">
+      <div class="sec-label">01 — EFFECTS</div>
+
+      <div class="fx-row">
+        <span class="fx-name">GLITCH</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-glitch" oninput="set('glitch',this.value)">
+        <span class="fx-v" id="v-glitch">0.00</span>
+        <button class="tog on" id="t-glitch" onclick="tog('glitch')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">RGB SPLIT</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-rgb" oninput="set('rgb',this.value)">
+        <span class="fx-v" id="v-rgb">0.00</span>
+        <button class="tog on" id="t-rgb" onclick="tog('rgb')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">NOISE</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-noise" oninput="set('noise',this.value)">
+        <span class="fx-v" id="v-noise">0.00</span>
+        <button class="tog on" id="t-noise" onclick="tog('noise')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">PIXELATE</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-pixel" oninput="set('pixel',this.value)">
+        <span class="fx-v" id="v-pixel">0.00</span>
+        <button class="tog on" id="t-pixel" onclick="tog('pixel')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">SCAN LINE</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-scan" oninput="set('scan',this.value)">
+        <span class="fx-v" id="v-scan">0.00</span>
+        <button class="tog on" id="t-scan" onclick="tog('scan')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">DISTORT</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-distort" oninput="set('distort',this.value)">
+        <span class="fx-v" id="v-distort">0.00</span>
+        <button class="tog on" id="t-distort" onclick="tog('distort')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">INVERT</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-invert" oninput="set('invert',this.value)">
+        <span class="fx-v" id="v-invert">0.00</span>
+        <button class="tog on" id="t-invert" onclick="tog('invert')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">EXPOSURE</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0.5" id="s-exposure" oninput="set('exposure',this.value)">
+        <span class="fx-v" id="v-exposure">0.50</span>
+        <button class="tog on" id="t-exposure" onclick="tog('exposure')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">HUE SHIFT</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-hue" oninput="set('hue',this.value)">
+        <span class="fx-v" id="v-hue">0.00</span>
+        <button class="tog on" id="t-hue" onclick="tog('hue')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">MIRROR</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-mirror" oninput="set('mirror',this.value)">
+        <span class="fx-v" id="v-mirror">0.00</span>
+        <button class="tog on" id="t-mirror" onclick="tog('mirror')">●</button>
+      </div>
+      <div class="fx-row">
+        <span class="fx-name">VIGNETTE</span>
+        <input class="fx-sl" type="range" min="0" max="1" step="0.01" value="0" id="s-vignette" oninput="set('vignette',this.value)">
+        <span class="fx-v" id="v-vignette">0.00</span>
+        <button class="tog on" id="t-vignette" onclick="tog('vignette')">●</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">02 — PRESETS</div>
+      <div class="btn-grid">
+        <button class="g-btn" onclick="preset('glitch')">GLITCH</button>
+        <button class="g-btn" onclick="preset('vhs')">VHS</button>
+        <button class="g-btn" onclick="preset('dream')">DREAM</button>
+        <button class="g-btn" onclick="preset('void')">VOID</button>
+        <button class="g-btn" onclick="preset('infra')">INFRA</button>
+        <button class="g-btn" onclick="resetAll()">RESET</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">03 — RECORD & EXPORT</div>
+      <div class="act-row">
+        <button class="a-btn r" id="rec-btn" onclick="toggleRec()">● REC</button>
+        <button class="a-btn dl" id="dl-btn" onclick="dlVideo()">↓ SAVE</button>
+      </div>
+      <div style="font-size:9px;letter-spacing:0.1em;color:rgba(0,0,0,0.3);margin-top:8px;line-height:1.9">
+        이펙트 적용된 영상 저장<br>
+        <span id="rec-dur" style="color:#cc0000"></span>
+      </div>
+      <button class="load-new" onclick="document.getElementById('file-input').click()">+ 다른 파일 불러오기</button>
+    </div>
+
+    <div class="sec" style="margin-top:auto;border-top:1px solid rgba(0,0,0,0.1);border-bottom:none">
+      <div class="info-grid">
+        <div>FILE <b id="i-file">—</b></div>
+        <div>SIZE <b id="i-size">—</b></div>
+        <div>RES <b id="i-res">—</b></div>
+        <div>FORMAT <b>WEBM</b></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const fx = {
+  glitch:{v:0,on:true}, rgb:{v:0,on:true}, noise:{v:0,on:true},
+  pixel:{v:0,on:true}, scan:{v:0,on:true}, distort:{v:0,on:true},
+  invert:{v:0,on:true}, exposure:{v:0.5,on:true}, hue:{v:0,on:true},
+  mirror:{v:0,on:true}, vignette:{v:0,on:true}
+};
+
+let running=false, frameCount=0, lastFPST=performance.now();
+let mediaRecorder=null, recChunks=[], isRec=false, recStart=null, lastBlob=null;
+
+function set(n,v){
+  fx[n].v=parseFloat(v);
+  document.getElementById('v-'+n).textContent=parseFloat(v).toFixed(2);
+}
+function tog(n){
+  fx[n].on=!fx[n].on;
+  const b=document.getElementById('t-'+n);
+  b.classList.toggle('on',fx[n].on);
+}
+
+// FILE LOAD
+document.getElementById('file-input').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  loadFile(f);
+});
+
+const dz=document.getElementById('dz-box');
+const dzWrap=document.getElementById('drop-zone');
+dzWrap.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+dzWrap.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dzWrap.addEventListener('drop',e=>{
+  e.preventDefault(); dz.classList.remove('drag');
+  const f=e.dataTransfer.files[0];
+  if(f && f.type.startsWith('video/')) loadFile(f);
+});
+
+function loadFile(f){
+  const url=URL.createObjectURL(f);
+  video.src=url;
+  video.load();
+  video.onloadedmetadata=()=>{
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    document.getElementById('drop-zone').classList.add('hidden');
+    document.getElementById('vid-controls').classList.add('on');
+    document.getElementById('h-filename').textContent=f.name;
+    document.getElementById('i-file').textContent=f.name.length>18?f.name.slice(0,16)+'…':f.name;
+    document.getElementById('i-size').textContent=(f.size/1024/1024).toFixed(1)+' MB';
+    document.getElementById('i-res').textContent=video.videoWidth+'×'+video.videoHeight;
+    video.play();
+    document.getElementById('play-btn').textContent='❚❚ PAUSE';
+    if(!running){running=true;renderLoop();}
+  };
+  video.ontimeupdate=()=>{
+    const sb=document.getElementById('seek-bar');
+    if(!isNaN(video.duration)){
+      sb.value=Math.round((video.currentTime/video.duration)*1000);
+      document.getElementById('vc-time').textContent=fmt(video.currentTime)+' / '+fmt(video.duration);
+    }
+  };
+}
+
+function fmt(s){
+  const m=Math.floor(s/60),sec=Math.floor(s%60);
+  return m+':'+(sec<10?'0':'')+sec;
+}
+
+document.getElementById('seek-bar').addEventListener('input',function(){
+  if(video.duration) video.currentTime=(this.value/1000)*video.duration;
+});
+
+function togglePlay(){
+  if(video.paused){video.play();document.getElementById('play-btn').textContent='❚❚ PAUSE';}
+  else{video.pause();document.getElementById('play-btn').textContent='▶ PLAY';}
+}
+function restartVideo(){video.currentTime=0;video.play();document.getElementById('play-btn').textContent='❚❚ PAUSE';}
+function setVol(v){video.volume=parseFloat(v);}
+
+function renderLoop(){
+  if(!running) return;
+  requestAnimationFrame(renderLoop);
+  if(video.readyState<2) return;
+
+  const W=canvas.width,H=canvas.height;
+  const g=fx.glitch.v, r=fx.rgb.v, n=fx.noise.v,
+        p=fx.pixel.v, sc=fx.scan.v, d=fx.distort.v,
+        inv=fx.invert.v, exp=fx.exposure.v, h=fx.hue.v,
+        mir=fx.mirror.v, vig=fx.vignette.v;
+
+  // PIXELATE
+  if(fx.pixel.on && p>0.01){
+    const blk=Math.max(2,Math.floor(p*64));
+    ctx.save();
+    ctx.drawImage(video,0,0,Math.max(1,Math.floor(W/blk)),Math.max(1,Math.floor(H/blk)));
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(canvas,0,0,Math.max(1,Math.floor(W/blk)),Math.max(1,Math.floor(H/blk)),0,0,W,H);
+    ctx.imageSmoothingEnabled=true;
+    ctx.restore();
+  } else {
+    ctx.drawImage(video,0,0,W,H);
+  }
+
+  // RGB SPLIT
+  if(fx.rgb.on && r>0.01){
+    const off=Math.floor(r*35);
+    ctx.save();
+    ctx.globalCompositeOperation='screen';
+    ctx.globalAlpha=0.55;
+    ctx.drawImage(video,off,0,W,H);
+    ctx.globalCompositeOperation='multiply';
+    ctx.globalAlpha=0.55;
+    ctx.drawImage(video,-off,0,W,H);
+    ctx.restore();
+  }
+
+  // DISTORT
+  if(fx.distort.on && d>0.01){
+    const id=ctx.getImageData(0,0,W,H);
+    const out=ctx.createImageData(W,H);
+    const t=Date.now()*0.002;
+    const amp=d*25;
+    for(let y=0;y<H;y++){
+      const wx=Math.round(Math.sin(y*0.05+t)*amp);
+      const wy=Math.round(Math.cos(y*0.03+t*0.8)*amp*0.4);
+      for(let x=0;x<W;x++){
+        const sx=Math.min(W-1,Math.max(0,x+wx));
+        const sy=Math.min(H-1,Math.max(0,y+wy));
+        const si=(sy*W+sx)*4, di=(y*W+x)*4;
+        out.data[di]=id.data[si];out.data[di+1]=id.data[si+1];
+        out.data[di+2]=id.data[si+2];out.data[di+3]=255;
+      }
+    }
+    ctx.putImageData(out,0,0);
+  }
+
+  // GLITCH
+  if(fx.glitch.on && g>0.01){
+    const strips=Math.floor(g*14)+1;
+    for(let i=0;i<strips;i++){
+      if(Math.random()>0.45) continue;
+      const sy=Math.floor(Math.random()*H);
+      const sh=Math.floor(Math.random()*H*0.1)+2;
+      const ox=(Math.random()-0.5)*g*90;
+      ctx.drawImage(canvas,0,sy,W,sh,ox,sy,W,sh);
+    }
+    if(Math.random()<g*0.25){
+      ctx.save();
+      ctx.globalCompositeOperation='difference';
+      ctx.fillStyle=`rgba(${Math.floor(Math.random()*255)},0,${Math.floor(Math.random()*100)},${g*0.4})`;
+      ctx.fillRect(0,Math.floor(Math.random()*H),W,Math.floor(Math.random()*18+2));
+      ctx.restore();
+    }
+    // horizontal tear
+    if(Math.random()<g*0.15){
+      const ty=Math.floor(Math.random()*H);
+      ctx.save();
+      ctx.globalAlpha=0.8;
+      ctx.drawImage(canvas,0,ty,W,4,Math.floor((Math.random()-0.5)*g*60),ty,W,4);
+      ctx.restore();
+    }
+  }
+
+  // PIXEL-LEVEL FX
+  if((fx.noise.on&&n>0.01)||(fx.invert.on&&inv>0.01)||(fx.exposure.on&&Math.abs(exp-0.5)>0.01)||(fx.hue.on&&h>0.01)||(fx.mirror.on&&mir>0.5)){
+    const id=ctx.getImageData(0,0,W,H);
+    const data=id.data;
+    const ef=exp*2;
+    const hd=h*360;
+    for(let i=0;i<data.length;i+=4){
+      let rr=data[i],gg=data[i+1],bb=data[i+2];
+      if(fx.exposure.on){rr=Math.min(255,rr*ef);gg=Math.min(255,gg*ef);bb=Math.min(255,bb*ef);}
+      if(fx.invert.on&&inv>0.01){rr=rr*(1-inv)+(255-rr)*inv;gg=gg*(1-inv)+(255-gg)*inv;bb=bb*(1-inv)+(255-bb)*inv;}
+      if(fx.noise.on&&n>0.01){const nd=(Math.random()-0.5)*n*130;rr=Math.min(255,Math.max(0,rr+nd));gg=Math.min(255,Math.max(0,gg+nd));bb=Math.min(255,Math.max(0,bb+nd));}
+      if(fx.hue.on&&h>0.01){
+        const U=Math.cos(hd*Math.PI/180),Ws=Math.sin(hd*Math.PI/180);
+        const nr=(.299+.701*U+.168*Ws)*rr+(.587-.587*U+.330*Ws)*gg+(.114-.114*U-.497*Ws)*bb;
+        const ng=(.299-.299*U-.328*Ws)*rr+(.587+.413*U+.035*Ws)*gg+(.114-.114*U+.292*Ws)*bb;
+        const nb=(.299-.3*U+1.25*Ws)*rr+(.587-.588*U-1.05*Ws)*gg+(.114+.886*U-.203*Ws)*bb;
+        rr=Math.min(255,Math.max(0,nr));gg=Math.min(255,Math.max(0,ng));bb=Math.min(255,Math.max(0,nb));
+      }
+      data[i]=rr;data[i+1]=gg;data[i+2]=bb;
+    }
+    if(fx.mirror.on&&mir>0.5){
+      for(let y=0;y<H;y++){
+        for(let x=0;x<Math.floor(W/2);x++){
+          const li=(y*W+x)*4,ri=(y*W+(W-1-x))*4;
+          data[ri]=data[li];data[ri+1]=data[li+1];data[ri+2]=data[li+2];data[ri+3]=data[li+3];
+        }
+      }
+    }
+    ctx.putImageData(id,0,0);
+  }
+
+  // SCAN LINES
+  if(fx.scan.on&&sc>0.01){
+    ctx.save();
+    ctx.globalAlpha=sc*0.65;
+    for(let y=0;y<H;y+=3){ctx.fillStyle='#000';ctx.fillRect(0,y,W,1);}
+    const sy=(Date.now()*0.18*sc)%H;
+    ctx.globalAlpha=sc*0.12;
+    ctx.fillStyle='#fff';
+    ctx.fillRect(0,sy,W,4);
+    ctx.restore();
+  }
+
+  // VIGNETTE
+  if(fx.vignette.on&&vig>0.01){
+    const grad=ctx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.9);
+    grad.addColorStop(0,'rgba(0,0,0,0)');
+    grad.addColorStop(1,`rgba(0,0,0,${vig*0.85})`);
+    ctx.save();
+    ctx.fillStyle=grad;
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
+
+  // FPS
+  frameCount++;
+  const now=performance.now();
+  if(now-lastFPST>600){
+    document.getElementById('fps-counter').textContent=Math.round(frameCount/((now-lastFPST)/1000))+' FPS';
+    frameCount=0;lastFPST=now;
+  }
+
+  if(isRec&&recStart){
+    const s=Math.floor((Date.now()-recStart)/1000);
+    document.getElementById('rec-dur').textContent='● '+Math.floor(s/60)+':'+(s%60<10?'0':'')+s%60;
+  }
+}
+
+function preset(name){
+  resetAll(true);
+  const P={
+    glitch:{glitch:0.75,rgb:0.5,scan:0.25,noise:0.2},
+    vhs:{scan:0.65,noise:0.3,rgb:0.35,exposure:0.42,vignette:0.4},
+    dream:{distort:0.45,hue:0.28,exposure:0.62,rgb:0.18,vignette:0.3},
+    void:{invert:0.85,exposure:0.18,noise:0.12,pixel:0.18,vignette:0.6},
+    infra:{hue:0.5,invert:0.3,exposure:0.55,noise:0.08,vignette:0.35},
+  };
+  const p=P[name]; if(!p) return;
+  Object.entries(p).forEach(([k,v])=>{
+    fx[k].v=v;
+    const sl=document.getElementById('s-'+k);
+    if(sl){sl.value=v;document.getElementById('v-'+k).textContent=v.toFixed(2);}
+  });
+}
+
+function resetAll(silent){
+  const def={glitch:0,rgb:0,noise:0,pixel:0,scan:0,distort:0,invert:0,exposure:0.5,hue:0,mirror:0,vignette:0};
+  Object.entries(def).forEach(([k,v])=>{
+    fx[k].v=v;
+    const sl=document.getElementById('s-'+k);
+    if(sl){sl.value=v;document.getElementById('v-'+k).textContent=v.toFixed(2);}
+  });
+}
+
+function toggleRec(){
+  if(!running){alert('먼저 영상을 불러오세요');return;}
+  if(!isRec) startRec(); else stopRec();
+}
+
+function startRec(){
+  recChunks=[];lastBlob=null;
+  const stream=canvas.captureStream(30);
+  const mime='video/webm;codecs=vp9';
+  mediaRecorder=new MediaRecorder(stream,{mimeType:mime});
+  mediaRecorder.ondataavailable=e=>{if(e.data.size>0)recChunks.push(e.data);};
+  mediaRecorder.onstop=()=>{
+    lastBlob=new Blob(recChunks,{type:'video/webm'});
+    document.getElementById('dl-btn').classList.add('rdy');
+  };
+  mediaRecorder.start(100);
+  isRec=true;recStart=Date.now();
+  document.getElementById('rec-btn').textContent='■ STOP';
+  document.getElementById('rec-btn').classList.add('on');
+  document.getElementById('rec-dot').classList.add('on');
+  document.getElementById('rec-pill').classList.add('on');
+  document.getElementById('rec-dur').textContent='';
+}
+
+function stopRec(){
+  if(mediaRecorder)mediaRecorder.stop();
+  isRec=false;recStart=null;
+  document.getElementById('rec-btn').textContent='● REC';
+  document.getElementById('rec-btn').classList.remove('on');
+  document.getElementById('rec-dot').classList.remove('on');
+  document.getElementById('rec-pill').classList.remove('on');
+}
+
+function dlVideo(){
+  if(!lastBlob){alert('먼저 녹화하세요');return;}
+  const url=URL.createObjectURL(lastBlob);
+  const a=document.createElement('a');
+  a.href=url;a.download='video-fx-'+Date.now()+'.webm';
+  a.click();URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
